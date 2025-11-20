@@ -1,0 +1,372 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
+import { CanvasPane } from '../components/CanvasPane';
+import { Controls } from '../components/Controls';
+import { EduPanel } from '../components/EduPanel';
+import { CoefTable } from '../components/CoefTable';
+import { Button } from '../components/ui/button';
+import { Copy, Moon, Sun } from 'lucide-react';
+import { SpectralViz } from '../components/SpectralViz';
+import { useLocalStorage } from '../hooks/useLocalStorage';
+import { simplifyPath } from '../lib/simplify';
+import { smoothPath } from '../lib/smoothing';
+import { resampleArcLength } from '../lib/resampleArcLength';
+import { computeFourierCoefficients, evaluateFourierSeries } from '../lib/fourier';
+import { formatSeriesText, buildDesmosExport } from '../lib/formatting';
+import { DEFAULT_DOMAIN, normalizeDomain, type DomainRange } from '../lib/domain';
+import {
+  DEFAULT_CANVAS,
+  TEST_SIGNALS,
+  type DrawingPoint,
+  valuesToPoints,
+  valueToCanvasY,
+} from '../lib/drawing';
+import { cn } from '../lib/utils';
+import { copyToClipboard } from '../lib/clipboard';
+import { useToast } from '../components/Toast';
+
+export default function App() {
+  const [rawPoints, setRawPoints] = useState<DrawingPoint[]>([]);
+  const samples = 1024;
+  const [harmonics, setHarmonics] = useLocalStorage('fourier.harmonics', 12);
+  const [smoothness, setSmoothness] = useLocalStorage('fourier.smoothness', 4);
+  const [penOnly, setPenOnly] = useLocalStorage('fourier.pen-only', false);
+  const [domainInput, setDomainInput] = useState<DomainRange>(DEFAULT_DOMAIN);
+  const [canvasSize, setCanvasSize] = useState(DEFAULT_CANVAS);
+  const [explainLevel, setExplainLevel] = useState<'intro' | 'advanced'>('intro');
+  const [seriesOpen, setSeriesOpen] = useState(false);
+  const [vizMode, setVizMode] = useState<'wave' | 'bars' | 'flow'>('wave');
+  const themeOrder = ['dark', 'light', 'midnight'] as const;
+  type ThemeName = typeof themeOrder[number];
+  const [theme, setTheme] = useLocalStorage<ThemeName>('fourier.theme', 'dark');
+  const { toast } = useToast();
+
+  useEffect(() => {
+    document.body.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme === 'dark' ? 'dark' : 'light';
+  }, [theme]);
+
+  const toggleTheme = useCallback(() => {
+    setTheme((prev) => {
+      const index = themeOrder.indexOf(prev as ThemeName);
+      const next = themeOrder[(index + 1) % themeOrder.length];
+      return next;
+    });
+  }, [setTheme]);
+
+
+  const domainSafe = useMemo(() => normalizeDomain(domainInput), [domainInput]);
+
+  const simplified = useMemo(
+    () => simplifyPath(rawPoints, 1.2),
+    [rawPoints],
+  );
+
+  const smoothed = useMemo(
+    () => smoothPath(simplified, smoothness),
+    [simplified, smoothness],
+  );
+
+  const { values, u: sampleU, x: sampleX } = useMemo(
+    () =>
+      resampleArcLength(smoothed, {
+        samples,
+        height: canvasSize.height,
+        width: canvasSize.width,
+      }),
+    [smoothed, canvasSize.height, canvasSize.width],
+  );
+
+  const coeffs = useMemo(
+    () => computeFourierCoefficients(values, harmonics),
+    [values, harmonics],
+  );
+
+  const reconstructionValues = useMemo(
+    () => evaluateFourierSeries(coeffs, sampleU),
+    [coeffs, sampleU],
+  );
+
+  const handleCopy = useCallback(async () => {
+    const desmos = buildDesmosExport(coeffs, domainSafe);
+    await copyToClipboard(desmos);
+    toast({ title: 'Series copied', description: 'Paste into Desmos to visualize the reconstruction.' });
+  }, [coeffs, domainSafe, toast]);
+
+  const handleSelectSignal = useCallback(
+    (id: string) => {
+      const signal = TEST_SIGNALS.find((item) => item.id === id);
+      if (!signal) return;
+      const generated = signal.generate(samples);
+      const points = valuesToPoints(generated, canvasSize.width, canvasSize.height);
+      setRawPoints(points);
+      toast({ title: 'Preset applied', description: signal.label });
+    },
+    [canvasSize.height, canvasSize.width, toast],
+  );
+
+  const handleDrawingChange = useCallback((points: DrawingPoint[]) => {
+    setRawPoints(points);
+  }, []);
+
+  const handleClear = useCallback(() => {
+    setRawPoints([]);
+  }, []);
+
+  const handleDomainChange = useCallback((range: DomainRange) => {
+    setDomainInput(normalizeDomain(range));
+  }, []);
+
+  const seriesText = useMemo(() => formatSeriesText(coeffs), [coeffs]);
+  const desmosExport = useMemo(() => buildDesmosExport(coeffs, domainSafe), [coeffs, domainSafe]);
+
+  const displayPoints = smoothed.length ? smoothed : rawPoints;
+
+  const reconstructionPath = useMemo(() => {
+    if (!reconstructionValues.length) return [];
+    return reconstructionValues.map((value, index) => {
+      const xCoord =
+        sampleX[index] ?? (sampleU[index] ?? 0) * Math.max(canvasSize.width - 1, 1);
+      return {
+        x: xCoord,
+        y: valueToCanvasY(value, canvasSize.height),
+      };
+    });
+  }, [reconstructionValues, sampleX, sampleU, canvasSize.width, canvasSize.height]);
+
+  return (
+    <motion.main
+      className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-10 text-white"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6 }}
+    >
+      <header className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm uppercase tracking-[0.4em] text-muted">Fourier Sketch Lab</p>
+            <h1 className="mt-1 font-display text-3xl text-white">
+              Draw anything. Watch waves rebuild it.
+            </h1>
+          </div>
+          <div className="flex flex-col items-end gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-label="Toggle theme"
+              onClick={toggleTheme}
+              className="gap-2"
+            >
+              {theme === 'dark' || theme === 'midnight' ? (
+                <Moon className="h-4 w-4" />
+              ) : (
+                <Sun className="h-4 w-4" />
+              )}
+              {theme.charAt(0).toUpperCase() + theme.slice(1)} mode
+            </Button>
+            <motion.button
+              type="button"
+              onClick={handleCopy}
+              className="flex items-center gap-2 rounded-full border border-accent/60 bg-gradient-to-r from-transparent via-[var(--accent-color)]/15 to-transparent px-3 py-1 text-[11px] text-white shadow-[0_0_20px_rgba(56,189,248,0.45)] transition hover:shadow-[0_0_30px_rgba(56,189,248,0.6)]"
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: [0, 4, 0] }}
+              transition={{ delay: 0.4, duration: 1.8, repeat: Infinity, repeatDelay: 1 }}
+              aria-label="Copy Desmos export"
+            >
+              <Copy className="h-3.5 w-3.5" />
+              Copy Desmos
+            </motion.button>
+          </div>
+        </div>
+        <p className="text-sm text-muted">
+          Smooth your strokes, resample by arc length, and export a Desmos-ready real Fourier series.
+        </p>
+      </header>
+
+      <motion.section
+        className="grid gap-6 lg:grid-cols-[minmax(0,_8fr)_minmax(320px,_3fr)]"
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.7 }}
+      >
+          <div className="flex h-full flex-col gap-2">
+            <div className="flex-1">
+              <CanvasPane
+                points={displayPoints}
+                onDrawingChange={handleDrawingChange}
+                penOnly={penOnly}
+                domain={domainSafe}
+                reconstructionPath={reconstructionPath}
+                onResize={setCanvasSize}
+                classNameOverride="min-h-[600px]"
+                theme={theme}
+              />
+            </div>
+            <PresetBubbles onSelect={handleSelectSignal} className="-mt-2" />
+        </div>
+        <div className="flex h-full flex-col gap-3">
+          <Controls
+            harmonics={harmonics}
+            onHarmonicsChange={setHarmonics}
+            smoothness={smoothness}
+            onSmoothnessChange={setSmoothness}
+            domain={domainSafe}
+            onDomainChange={handleDomainChange}
+            penOnly={penOnly}
+            onPenToggle={setPenOnly}
+            onClear={handleClear}
+          />
+          <SpectralViz
+            values={values}
+            reconstruction={reconstructionValues}
+            sampleX={sampleX}
+            className="mt-auto min-h-[260px] overflow-hidden"
+            mode={vizMode}
+            theme={theme}
+            onModeChange={setVizMode}
+          />
+        </div>
+      </motion.section>
+
+      <motion.section
+        className="space-y-6"
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8 }}
+      >
+        <MathExplainer
+          level={explainLevel}
+          onLevelChange={setExplainLevel}
+        />
+        <div className="glass-card space-y-4 rounded-3xl border border-white/5 p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm uppercase tracking-wide text-muted">Series & Coefficients</p>
+              <p className="text-lg font-semibold text-white">See how each harmonic contributes</p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant={seriesOpen ? 'primary' : 'ghost'}
+                aria-expanded={seriesOpen}
+                onClick={() => setSeriesOpen((prev) => !prev)}
+              >
+                {seriesOpen ? 'Hide Series' : 'Show Series'}
+              </Button>
+            </div>
+          </div>
+          {seriesOpen ? (
+            <div className="space-y-2">
+              <p className="text-xs uppercase tracking-wide text-muted">Series (u-space)</p>
+              <code
+                className="block rounded-2xl bg-black/30 p-3 text-xs text-accent"
+                aria-live="polite"
+                data-testid="series-text"
+              >
+                {seriesText}
+              </code>
+            </div>
+          ) : null}
+          <div className="grid gap-4 md:grid-cols-2">
+            <CoefTable title="cos(k)" values={coeffs.an} />
+            <CoefTable title="sin(k)" values={coeffs.bn} />
+          </div>
+        </div>
+      </motion.section>
+    </motion.main>
+  );
+}
+
+type ExplainLevel = 'intro' | 'advanced';
+
+type MathExplainerProps = {
+  level: ExplainLevel;
+  onLevelChange: (level: ExplainLevel) => void;
+};
+
+function MathExplainer({ level, onLevelChange }: MathExplainerProps) {
+  const introCopy = [
+    '1. We smooth and simplify your hand-drawn path so noise does not overwhelm the Fourier fit.',
+    '2. The stroke is parameterized by arc length (u ∈ [0,1]) so loops and backtracks stay intact.',
+    '3. Cosine (even) and sine (odd) harmonics add up to recreate your drawing.',
+  ];
+  const advancedCopy = [
+    '• We solve a truncated real Fourier series (not Taylor/Maclaurin). Taylor/Maclaurin approximate about a single point; Fourier approximates globally using periodic basis functions, which is what a looping sketch needs.',
+    '• The path is parameterized by normalized arc length u = s/s_total so samples track travel distance along the stroke rather than x-position; this preserves loops and cusps.',
+    '• Samples are uniformly placed in u and each canvas y-value is remapped to math space [-1,1] before analysis, ensuring amplitude is scale-invariant.',
+    '• Each coefficient has geometric meaning: a₀/2 is your average level, aₙ scales cosine waves that keep the sketch even, and bₙ scales sine waves that capture the odd, phase-shifted structure. Plugging them into f(u) = a₀/2 + Σ[aₙ cos(n·2πu) + bₙ sin(n·2πu)] recreates the curve.',
+    '• Coefficients use trapezoidal integration of f(u)cos(k·2πu) and f(u)sin(k·2πu); endpoints get half-weight to reduce spectral leakage and match the periodic extension.',
+    '• The exported series substitutes x′ = 2π·(x-a)/(b-a), which scales any user-defined domain {a<x<b} back to the unit interval so Desmos reproduces the same drawing.',
+    '• Smoothing + RDP simplification happen before sampling so we solve for the dominant structure instead of high-frequency hand jitter.',
+  ];
+  return (
+    <div className="glass-card rounded-3xl border border-white/5 p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm uppercase tracking-wide text-muted">Understanding the math</p>
+          <p className="text-lg font-semibold text-white">Choose how deep you want to go</p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant={level === 'intro' ? 'primary' : 'ghost'}
+            onClick={() => onLevelChange('intro')}
+          >
+            Essentials
+          </Button>
+          <Button
+            size="sm"
+            variant={level === 'advanced' ? 'primary' : 'ghost'}
+            onClick={() => onLevelChange('advanced')}
+          >
+            Advanced
+          </Button>
+        </div>
+      </div>
+      {level === 'intro' ? (
+        <ul className="mt-4 space-y-2 text-sm text-muted">
+          {introCopy.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      ) : (
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <ul className="space-y-2 text-sm text-muted">
+            {advancedCopy.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+          <EduPanel />
+        </div>
+      )}
+    </div>
+  );
+}
+
+type PresetBubblesProps = {
+  onSelect: (id: string) => void;
+  className?: string;
+};
+
+function PresetBubbles({ onSelect, className }: PresetBubblesProps) {
+  return (
+    <div
+      className={cn(
+        'flex flex-wrap items-center gap-2 rounded-3xl border border-white/5 bg-white/5 px-4 py-3',
+        className,
+      )}
+    >
+      <span className="text-xs uppercase tracking-wide text-muted">Quick waves:</span>
+      {TEST_SIGNALS.map((signal) => (
+        <button
+          key={signal.id}
+          type="button"
+          onClick={() => onSelect(signal.id)}
+          className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs text-muted transition hover:border-accent hover:text-white"
+        >
+          {signal.label}
+        </button>
+      ))}
+    </div>
+  );
+}
