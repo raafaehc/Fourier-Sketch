@@ -27,7 +27,7 @@ type SpectralVizProps = {
   sampleX: number[];
   className?: string;
   mode: 'wave' | 'bars' | 'flow';
-  theme: 'dark' | 'light' | 'midnight';
+  theme: 'dark' | 'light' | 'midnight' | 'sunset' | 'forest' | 'neon';
   onModeChange: (mode: 'wave' | 'bars' | 'flow') => void;
 };
 
@@ -55,6 +55,9 @@ export function SpectralViz({
     dark: { grid: 'rgba(148,163,184,0.12)', raw: '#94a3b8', background: 'url(#vizGrid)' },
     light: { grid: 'rgba(15,23,42,0.08)', raw: '#0f172a', background: 'rgba(15,23,42,0.04)' },
     midnight: { grid: 'rgba(99,102,241,0.18)', raw: '#c7d2fe', background: 'url(#vizGrid)' },
+    sunset: { grid: 'rgba(248, 113, 113, 0.28)', raw: '#fecaca', background: 'rgba(30, 64, 175, 0.35)' },
+    forest: { grid: 'rgba(34,197,94,0.25)', raw: '#bbf7d0', background: 'rgba(6, 95, 70, 0.5)' },
+    neon: { grid: 'rgba(94,234,212,0.4)', raw: '#f9a8d4', background: 'rgba(15,23,42,0.9)' },
   } as const;
   const vizColors = visuals[theme] ?? visuals.dark;
 

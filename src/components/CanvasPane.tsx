@@ -20,7 +20,7 @@ export type CanvasPaneProps = {
   reconstructionPath: { x: number; y: number }[];
   onResize?: (size: { width: number; height: number }) => void;
   classNameOverride?: string;
-  theme?: 'dark' | 'light' | 'midnight';
+  theme?: 'dark' | 'light' | 'midnight' | 'sunset' | 'forest' | 'neon';
 };
 
 export function CanvasPane({
@@ -78,6 +78,27 @@ export function CanvasPane({
         grid: 'rgba(99,102,241,0.25)',
         axis: 'rgba(99,102,241,0.35)',
         label: '#c7d2fe',
+      },
+      sunset: {
+        fill: 'rgba(24,16,32,0.96)',
+        stroke: '#fb7185',
+        grid: 'rgba(248, 113, 113, 0.22)',
+        axis: 'rgba(251, 113, 133, 0.35)',
+        label: '#fecaca',
+      },
+      forest: {
+        fill: 'rgba(5,24,12,0.96)',
+        stroke: '#4ade80',
+        grid: 'rgba(34,197,94,0.22)',
+        axis: 'rgba(22,163,74,0.35)',
+        label: '#bbf7d0',
+      },
+      neon: {
+        fill: 'rgba(6,6,26,0.96)',
+        stroke: '#22d3ee',
+        grid: 'rgba(94,234,212,0.3)',
+        axis: 'rgba(244, 63, 94, 0.4)',
+        label: '#f9a8d4',
       },
     } as const;
     const colors = palette[theme] ?? palette.dark;

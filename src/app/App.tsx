@@ -5,7 +5,7 @@ import { Controls } from '../components/Controls';
 import { EduPanel } from '../components/EduPanel';
 import { CoefTable } from '../components/CoefTable';
 import { Button } from '../components/ui/button';
-import { Copy, Moon, Sun } from 'lucide-react';
+import { Copy } from 'lucide-react';
 import { SpectralViz } from '../components/SpectralViz';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { simplifyPath } from '../lib/simplify';
@@ -36,23 +36,23 @@ export default function App() {
   const [explainLevel, setExplainLevel] = useState<'intro' | 'advanced'>('intro');
   const [seriesOpen, setSeriesOpen] = useState(false);
   const [vizMode, setVizMode] = useState<'wave' | 'bars' | 'flow'>('wave');
-  const themeOrder = ['dark', 'light', 'midnight'] as const;
-  type ThemeName = typeof themeOrder[number];
+  type ThemeName = 'dark' | 'light' | 'midnight' | 'sunset' | 'forest' | 'neon';
+  const themeOptions: { id: ThemeName; label: string }[] = [
+    { id: 'dark', label: 'Dark' },
+    { id: 'light', label: 'Light' },
+    { id: 'midnight', label: 'Midnight' },
+    { id: 'sunset', label: 'Sunset' },
+    { id: 'forest', label: 'Forest' },
+    { id: 'neon', label: 'Neon' },
+  ];
   const [theme, setTheme] = useLocalStorage<ThemeName>('fourier.theme', 'dark');
   const { toast } = useToast();
 
   useEffect(() => {
     document.body.dataset.theme = theme;
-    document.documentElement.style.colorScheme = theme === 'dark' ? 'dark' : 'light';
+    const isLight = theme === 'light';
+    document.documentElement.style.colorScheme = isLight ? 'light' : 'dark';
   }, [theme]);
-
-  const toggleTheme = useCallback(() => {
-    setTheme((prev) => {
-      const index = themeOrder.indexOf(prev as ThemeName);
-      const next = themeOrder[(index + 1) % themeOrder.length];
-      return next;
-    });
-  }, [setTheme]);
 
 
   const domainSafe = useMemo(() => normalizeDomain(domainInput), [domainInput]);
@@ -150,20 +150,21 @@ export default function App() {
             </h1>
           </div>
           <div className="flex flex-col items-end gap-2">
-            <Button
-              size="sm"
-              variant="ghost"
-              aria-label="Toggle theme"
-              onClick={toggleTheme}
-              className="gap-2"
-            >
-              {theme === 'dark' || theme === 'midnight' ? (
-                <Moon className="h-4 w-4" />
-              ) : (
-                <Sun className="h-4 w-4" />
-              )}
-              {theme.charAt(0).toUpperCase() + theme.slice(1)} mode
-            </Button>
+            <label className="flex items-center gap-2 text-xs text-muted">
+              Theme
+              <select
+                value={theme}
+                onChange={(event) => setTheme(event.target.value as ThemeName)}
+                className="rounded-full border border-white/10 bg-black/30 px-3 py-1 text-xs text-white outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)]"
+                aria-label="Select theme"
+              >
+                {themeOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
             <motion.button
               type="button"
               onClick={handleCopy}
