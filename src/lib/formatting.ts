@@ -1,15 +1,14 @@
 import type { FourierCoefficients } from './fourier';
 import { type DomainRange } from './domain';
 
-const formatter = new Intl.NumberFormat('en-US', {
-  maximumFractionDigits: 4,
-  minimumFractionDigits: 0,
-});
-
 function fmt(value: number): string {
-  const rounded = Number(formatter.format(value));
-  if (Math.abs(rounded) < 1e-4) return '0';
-  return rounded.toString();
+  if (!Number.isFinite(value)) return '0';
+  if (Math.abs(value) < 1e-12) return '0';
+  const abs = Math.abs(value);
+  if (abs >= 1e4 || abs < 1e-6) {
+    return value.toExponential(6);
+  }
+  return value.toFixed(8).replace(/0+$/, '').replace(/\.$/, '');
 }
 
 export function formatSeriesText(coeffs: FourierCoefficients): string {
@@ -37,23 +36,29 @@ export function buildDesmosExport(
   coeffs: FourierCoefficients,
   domain: DomainRange,
 ): string {
-  const span = domain.b - domain.a;
-  const amplitudeScale = span !== 0 ? span : 1;
-  const xPrime = `(2π*(x - ${domain.a}))/(${span || 1})`;
+  const { a0, an, bn } = coeffs;
+  const a = domain.a;
+  const b = domain.b;
+  const maxTerms = Math.max(an.length, bn.length);
+
   const parts: string[] = [];
-  if (coeffs.a0 !== 0) {
-    parts.push(`${fmt((coeffs.a0 / 2) * amplitudeScale)}`);
+
+  if (Math.abs(a0 / 2) > 0) {
+    parts.push(`${fmt(a0 / 2)}`);
   }
-  coeffs.an.forEach((value, index) => {
-    const k = index + 1;
-    if (value !== 0) {
-      parts.push(`${fmt(value * amplitudeScale)}*cos(${k}*${xPrime})`);
+
+  for (let k = 1; k <= maxTerms; k += 1) {
+    const A = an[k - 1] ?? 0;
+    const B = bn[k - 1] ?? 0;
+    if (A !== 0) {
+      parts.push(`${fmt(A)}*cos(${k}*2π*(x-${a})/(${b}-${a}))`);
     }
-    const sineValue = coeffs.bn[index];
-    if (sineValue !== 0) {
-      parts.push(`${fmt(sineValue * amplitudeScale)}*sin(${k}*${xPrime})`);
+    if (B !== 0) {
+      parts.push(`${fmt(B)}*sin(${k}*2π*(x-${a})/(${b}-${a}))`);
     }
-  });
-  const rhs = parts.length === 0 ? '0' : parts.join(' + ');
+  }
+
+  const rhsBase = parts.length ? parts.join(' + ') : '0';
+  const rhs = rhsBase.replace(/\+ -/g, '- ');
   return `y = ${rhs}`;
 }

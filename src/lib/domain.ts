@@ -3,7 +3,7 @@ export type DomainRange = {
   b: number;
 };
 
-export const DEFAULT_DOMAIN: DomainRange = { a: 0, b: 1 };
+export const DEFAULT_DOMAIN: DomainRange = { a: 1, b: 4 };
 
 export function normalizeDomain(input: DomainRange): DomainRange {
   let { a, b } = input;
