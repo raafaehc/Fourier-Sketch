@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { CanvasPane } from '../components/CanvasPane';
 import { Controls } from '../components/Controls';
@@ -35,7 +35,7 @@ export default function App() {
   const [canvasSize, setCanvasSize] = useState(DEFAULT_CANVAS);
   const [isPreset, setIsPreset] = useState(false);
   const [explainLevel, setExplainLevel] = useState<'intro' | 'advanced'>('intro');
-  const [seriesOpen, setSeriesOpen] = useState(false);
+  const [seriesOpen, setSeriesOpen] = useState(true);
   const vizModes: Array<'wave' | 'ribbon' | 'echo'> = ['wave', 'ribbon', 'echo'];
   const [vizMode, setVizMode] = useState<'wave' | 'ribbon' | 'echo'>(() => {
     const index = Math.floor(Math.random() * vizModes.length);
@@ -45,6 +45,7 @@ export default function App() {
   const [reconClipProgress, setReconClipProgress] = useState(0);
   const [vizValues, setVizValues] = useState<number[]>([]);
   const [vizSampleX, setVizSampleX] = useState<number[]>([]);
+  const seriesRef = useRef<HTMLDivElement | null>(null);
   type ThemeName = 'dark' | 'light' | 'midnight' | 'sunset' | 'forest' | 'neon';
   const themeOptions: { id: ThemeName; label: string }[] = [
     { id: 'dark', label: 'Dark' },
@@ -142,6 +143,12 @@ export default function App() {
     await copyToClipboard(desmos);
     toast({ title: 'Series copied', description: 'Paste into Desmos to visualize the reconstruction.' });
   }, [coeffs, domainSafe, toast]);
+
+  const handleScrollToSeries = useCallback(() => {
+    if (seriesRef.current) {
+      seriesRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []);
 
   const handleSelectSignal = useCallback(
     (id: string) => {
@@ -290,6 +297,14 @@ export default function App() {
               <Copy className="h-3.5 w-3.5" />
               Copy Desmos
             </motion.button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleScrollToSeries}
+              className="text-[11px]"
+            >
+              Jump to series
+            </Button>
           </div>
         </div>
         <p className="text-sm text-muted">
@@ -355,7 +370,10 @@ export default function App() {
           level={explainLevel}
           onLevelChange={setExplainLevel}
         />
-        <div className="glass-card space-y-4 rounded-3xl border border-white/5 p-6">
+        <div
+          ref={seriesRef}
+          className="glass-card space-y-4 rounded-3xl border border-white/5 p-6"
+        >
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm uppercase tracking-wide text-muted">Series & Coefficients</p>
