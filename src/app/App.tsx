@@ -285,26 +285,39 @@ export default function App() {
                 ))}
               </select>
             </label>
-            <motion.button
-              type="button"
-              onClick={handleCopy}
-              className="flex items-center gap-2 rounded-full border border-accent/60 bg-gradient-to-r from-transparent via-[var(--accent-color)]/15 to-transparent px-3 py-1 text-[11px] text-white shadow-[0_0_20px_rgba(56,189,248,0.45)] transition hover:shadow-[0_0_30px_rgba(56,189,248,0.6)]"
-              initial={{ opacity: 0, y: -6 }}
-              animate={{ opacity: 1, y: [0, 4, 0] }}
-              transition={{ delay: 0.4, duration: 1.8, repeat: Infinity, repeatDelay: 1 }}
-              aria-label="Copy Desmos export"
+            <div className="flex flex-col items-end gap-1.5">
+              <motion.button
+                type="button"
+                onClick={handleCopy}
+                className="flex items-center gap-2 rounded-full border border-accent/60 bg-gradient-to-r from-transparent via-[var(--accent-color)]/15 to-transparent px-3 py-1 text-[11px] text-white shadow-[0_0_20px_rgba(56,189,248,0.45)] transition hover:shadow-[0_0_30px_rgba(56,189,248,0.6)]"
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: [0, 4, 0] }}
+                transition={{ delay: 0.4, duration: 2.2, repeat: Infinity, repeatDelay: 1.2 }}
+                aria-label="Copy Desmos export"
+              >
+                <Copy className="h-3.5 w-3.5" />
+                Copy Desmos
+              </motion.button>
+              <motion.button
+                type="button"
+                onClick={handleScrollToSeries}
+                className="flex items-center gap-2 rounded-full border border-accent/60 bg-gradient-to-r from-transparent via-[var(--accent-color)]/12 to-transparent px-3 py-1 text-[11px] text-white shadow-[0_0_16px_rgba(56,189,248,0.35)] transition hover:shadow-[0_0_24px_rgba(56,189,248,0.5)]"
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: [0, 4, 0] }}
+                transition={{ delay: 0.4, duration: 2.2, repeat: Infinity, repeatDelay: 1.2 }}
+                aria-label="Jump to series section"
+              >
+                Jump to series
+              </motion.button>
+            </div>
+            <a
+              href="https://www.buymeacoffee.com/raafaehc"
+              target="_blank"
+              rel="noreferrer"
+              className="text-[10px] text-muted underline underline-offset-4 hover:text-accent"
             >
-              <Copy className="h-3.5 w-3.5" />
-              Copy Desmos
-            </motion.button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={handleScrollToSeries}
-              className="text-[11px]"
-            >
-              Jump to series
-            </Button>
+              Buy me a coffee →
+            </a>
           </div>
         </div>
         <p className="text-sm text-muted">
@@ -408,6 +421,7 @@ export default function App() {
           </div>
         </div>
       </motion.section>
+
     </motion.main>
   );
 }
