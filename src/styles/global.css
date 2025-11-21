@@ -184,6 +184,30 @@ body[data-theme='neon'] .text-white {
   color: var(--accent-color) !important;
 }
 
+.canvas-action-border {
+  border-color: rgba(148, 163, 184, 0.75);
+}
+
+body[data-theme='light'] .canvas-action-border {
+  border-color: rgba(15, 23, 42, 0.55);
+}
+
+body[data-theme='midnight'] .canvas-action-border {
+  border-color: rgba(191, 219, 254, 0.8);
+}
+
+body[data-theme='sunset'] .canvas-action-border {
+  border-color: rgba(251, 113, 133, 0.85);
+}
+
+body[data-theme='forest'] .canvas-action-border {
+  border-color: rgba(187, 247, 208, 0.85);
+}
+
+body[data-theme='neon'] .canvas-action-border {
+  border-color: rgba(56, 189, 248, 0.85);
+}
+
 body[data-theme='light'] .bg-white\/5 {
   background-color: rgba(15, 23, 42, 0.06) !important;
 }

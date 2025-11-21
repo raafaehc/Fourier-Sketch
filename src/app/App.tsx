@@ -5,7 +5,7 @@ import { Controls } from '../components/Controls';
 import { EduPanel } from '../components/EduPanel';
 import { CoefTable } from '../components/CoefTable';
 import { Button } from '../components/ui/button';
-import { Copy } from 'lucide-react';
+import { Copy, Coffee } from 'lucide-react';
 import { SpectralViz } from '../components/SpectralViz';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { simplifyPath } from '../lib/simplify';
@@ -257,11 +257,16 @@ export default function App() {
   return (
     <motion.main
       className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-10 text-white"
-      initial={{ opacity: 0, y: 8 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6 }}
+      transition={{ duration: 0.6, ease: 'easeOut' }}
     >
-      <header className="space-y-3">
+      <motion.header
+        className="space-y-3"
+        initial={{ opacity: 0, y: -16, x: -14 }}
+        animate={{ opacity: 1, y: 0, x: 0 }}
+        transition={{ duration: 0.65, ease: 'easeOut', delay: 0.05 }}
+      >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm uppercase tracking-[0.4em] text-muted">Fourier Sketch Lab</p>
@@ -269,7 +274,7 @@ export default function App() {
               Draw anything. Watch waves rebuild it.
             </h1>
           </div>
-          <div className="flex flex-col items-end gap-2">
+          <div className="flex flex-col items-end gap-3">
             <label className="flex items-center gap-2 text-xs text-muted">
               Theme
               <select
@@ -285,54 +290,36 @@ export default function App() {
                 ))}
               </select>
             </label>
-            <div className="flex flex-col items-end gap-1.5">
-              <motion.button
-                type="button"
-                onClick={handleCopy}
-                className="flex items-center gap-2 rounded-full border border-accent/60 bg-gradient-to-r from-transparent via-[var(--accent-color)]/15 to-transparent px-3 py-1 text-[11px] text-white shadow-[0_0_20px_rgba(56,189,248,0.45)] transition hover:shadow-[0_0_30px_rgba(56,189,248,0.6)]"
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: [0, 4, 0] }}
-                transition={{ delay: 0.4, duration: 2.2, repeat: Infinity, repeatDelay: 1.2 }}
-                aria-label="Copy Desmos export"
-              >
-                <Copy className="h-3.5 w-3.5" />
-                Copy Desmos
-              </motion.button>
-              <motion.button
-                type="button"
-                onClick={handleScrollToSeries}
-                className="flex items-center gap-2 rounded-full border border-accent/60 bg-gradient-to-r from-transparent via-[var(--accent-color)]/12 to-transparent px-3 py-1 text-[11px] text-white shadow-[0_0_16px_rgba(56,189,248,0.35)] transition hover:shadow-[0_0_24px_rgba(56,189,248,0.5)]"
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: [0, 4, 0] }}
-                transition={{ delay: 0.4, duration: 2.2, repeat: Infinity, repeatDelay: 1.2 }}
-                aria-label="Jump to series section"
-              >
-                Jump to series
-              </motion.button>
-            </div>
-            <a
+            <motion.a
               href="https://www.buymeacoffee.com/raafaehc"
               target="_blank"
               rel="noreferrer"
-              className="text-[10px] text-muted underline underline-offset-4 hover:text-accent"
+              className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/30 px-3.5 py-1.5 text-[11px] text-muted backdrop-blur-sm transition hover:border-accent hover:text-white"
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.97 }}
+              transition={{ duration: 0.4, ease: 'easeOut', delay: 0.3 }}
             >
-              Buy me a coffee →
-            </a>
+              <Coffee className="h-3.5 w-3.5 text-accent" />
+              <span className="hidden sm:inline">Want to support the project?</span>
+              <span className="font-semibold text-white">Buy me a coffee</span>
+            </motion.a>
           </div>
         </div>
         <p className="text-sm text-muted">
           Smooth your strokes, resample by arc length, and export a Desmos-ready real Fourier series.
         </p>
-      </header>
+      </motion.header>
 
       <motion.section
         className="grid gap-6 lg:grid-cols-[minmax(0,_8fr)_minmax(320px,_3fr)]"
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.7 }}
+        initial={{ opacity: 0, y: 22, x: 14 }}
+        animate={{ opacity: 1, y: 0, x: 0 }}
+        transition={{ duration: 0.7, ease: 'easeOut', delay: 0.15 }}
       >
           <div className="flex h-full flex-col gap-2">
-            <div className="flex-1">
+            <div className="relative flex-1">
               <CanvasPane
                 points={displayPoints}
                 onDrawingChange={handleDrawingChange}
@@ -344,6 +331,25 @@ export default function App() {
                 theme={theme}
                 onDrawingStateChange={setIsDrawing}
               />
+              <div className="pointer-events-none absolute inset-x-4 top-4 flex justify-between">
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  className="pointer-events-auto flex transform items-center gap-2 rounded-full border canvas-action-border bg-gradient-to-r from-black/15 via-[var(--accent-color)]/22 to-black/8 px-3 py-1 text-[11px] text-white shadow-[0_12px_30px_rgba(15,23,42,0.65)] backdrop-blur-sm transition hover:shadow-[0_16px_40px_rgba(15,23,42,0.9)] hover:scale-[1.08]"
+                  aria-label="Copy Desmos export"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  Copy Desmos
+                </button>
+                <button
+                  type="button"
+                  onClick={handleScrollToSeries}
+                  className="pointer-events-auto flex transform items-center gap-2 rounded-full border canvas-action-border bg-gradient-to-r from-black/15 via-[var(--accent-color)]/18 to-black/8 px-3 py-1 text-[11px] text-white shadow-[0_12px_30px_rgba(15,23,42,0.65)] backdrop-blur-sm transition hover:shadow-[0_16px_40px_rgba(15,23,42,0.9)] hover:scale-[1.08]"
+                  aria-label="Jump to series section"
+                >
+                  Jump to series
+                </button>
+              </div>
             </div>
             <PresetBubbles onSelect={handleSelectSignal} className="-mt-2" />
         </div>
@@ -375,9 +381,9 @@ export default function App() {
 
       <motion.section
         className="space-y-6"
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8 }}
+        initial={{ opacity: 0, y: 26, x: -14 }}
+        animate={{ opacity: 1, y: 0, x: 0 }}
+        transition={{ duration: 0.7, ease: 'easeOut', delay: 0.28 }}
       >
         <MathExplainer
           level={explainLevel}
@@ -511,7 +517,7 @@ function PresetBubbles({ onSelect, className }: PresetBubblesProps) {
           key={signal.id}
           type="button"
           onClick={() => onSelect(signal.id)}
-          className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs text-muted transition hover:border-accent hover:text-white"
+          className="transform rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs text-muted transition hover:border-accent hover:text-white hover:scale-[1.08]"
         >
           {signal.label}
         </button>

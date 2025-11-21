@@ -9,7 +9,7 @@ type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = 'primary', size = 'md', type = 'button', ...props }, ref) => {
     const base =
-      'inline-flex items-center justify-center rounded-full font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)] disabled:opacity-50 disabled:cursor-not-allowed';
+      'inline-flex items-center justify-center rounded-full font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)] disabled:opacity-50 disabled:cursor-not-allowed transform transition-transform duration-200 ease-out hover:scale-[1.08]';
     const variants = {
       primary:
         'bg-[var(--accent-color)] text-black hover:bg-[var(--accent-hover-color)] shadow-[0_10px_30px_rgba(0,0,0,0.18)]',
