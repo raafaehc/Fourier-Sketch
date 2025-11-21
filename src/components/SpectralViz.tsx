@@ -1,23 +1,57 @@
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '../lib/utils';
-import { Button } from './ui/button';
 
 const WIDTH = 640;
 const HEIGHT = 220;
-const VIEW_OFFSET = 60;
 
-function buildPath(xs: number[], values: number[]): string {
+function smoothValues(values: number[], radius = 2): number[] {
+  if (!values.length || radius <= 0) return values;
+  const result = new Array(values.length);
+  for (let i = 0; i < values.length; i += 1) {
+    let sum = 0;
+    let count = 0;
+    for (let k = -radius; k <= radius; k += 1) {
+      const idx = i + k;
+      if (idx >= 0 && idx < values.length) {
+        sum += values[idx];
+        count += 1;
+      }
+    }
+    result[i] = count ? sum / count : values[i];
+  }
+  return result;
+}
+
+type VisibleRange = { start: number; end: number };
+
+function clampRange(range?: VisibleRange): VisibleRange {
+  if (!range) return { start: 0, end: 1 };
+  let { start, end } = range;
+  start = Number.isFinite(start) ? Math.max(0, Math.min(1, start)) : 0;
+  end = Number.isFinite(end) ? Math.max(0, Math.min(1, end)) : 1;
+  if (end < start) end = start;
+  return { start, end };
+}
+
+function buildPath(xs: number[], values: number[], range?: VisibleRange): string {
   if (!values.length) return '';
+  const smoothed = smoothValues(values, 3);
   const safeXs = xs.length === values.length ? xs : values.map((_, idx) => idx);
   const minX = Math.min(...safeXs);
   const maxX = Math.max(...safeXs);
   const span = Math.max(maxX - minX, 1);
-  const points = values.map((value, index) => {
-    const normX = ((safeXs[index] - minX) / span) * WIDTH;
+  const { start, end } = clampRange(range);
+  const points: string[] = [];
+  for (let index = 0; index < smoothed.length; index += 1) {
+    const u = (safeXs[index] - minX) / span;
+    if (u < start || u > end) continue;
+    const normX = u * WIDTH;
+    const value = smoothed[index];
     const normY = (1 - (value + 1) / 2) * HEIGHT;
-    return `${normX.toFixed(2)},${normY.toFixed(2)}`;
-  });
+    points.push(`${normX.toFixed(2)},${normY.toFixed(2)}`);
+  }
+  if (!points.length) return '';
   return `M ${points.join(' L ')}`;
 }
 
@@ -26,16 +60,12 @@ type SpectralVizProps = {
   reconstruction: number[];
   sampleX: number[];
   className?: string;
-  mode: 'wave' | 'bars' | 'flow';
+  mode: 'wave' | 'ribbon' | 'echo';
   theme: 'dark' | 'light' | 'midnight' | 'sunset' | 'forest' | 'neon';
-  onModeChange: (mode: 'wave' | 'bars' | 'flow') => void;
+  onModeChange: (mode: SpectralVizProps['mode']) => void;
+  visibleRange?: VisibleRange;
+  isDrawing?: boolean;
 };
-
-const vizOptions: { id: SpectralVizProps['mode']; label: string }[] = [
-  { id: 'wave', label: 'Ribbon Wave' },
-  { id: 'bars', label: 'Spectral Bars' },
-  { id: 'flow', label: 'Flow Field' },
-];
 
 export function SpectralViz({
   values,
@@ -45,11 +75,18 @@ export function SpectralViz({
   mode,
   theme,
   onModeChange,
+  visibleRange,
+  isDrawing = false,
 }: SpectralVizProps) {
-  const rawPath = useMemo(() => buildPath(sampleX, values), [sampleX, values]);
-  const reconPath = useMemo(() => buildPath(sampleX, reconstruction), [sampleX, reconstruction]);
-  const barData = useMemo(() => buildBarData(reconstruction), [reconstruction]);
-  const flowLines = useMemo(() => buildFlowLines(reconstruction), [reconstruction]);
+  const range = clampRange(visibleRange);
+  const rawPath = useMemo(
+    () => buildPath(sampleX, values, range),
+    [sampleX, values, range.start, range.end],
+  );
+  const reconPath = useMemo(
+    () => buildPath(sampleX, reconstruction, range),
+    [sampleX, reconstruction, range.start, range.end],
+  );
 
   const visuals = {
     dark: { grid: 'rgba(148,163,184,0.12)', raw: '#94a3b8', background: 'url(#vizGrid)' },
@@ -63,154 +100,145 @@ export function SpectralViz({
 
   return (
     <div
-      className={cn('glass-card flex h-full flex-col rounded-3xl border border-white/5 p-4', className)}
+      className={cn('glass-card relative h-full overflow-hidden rounded-3xl border border-white/5 p-0', className)}
       aria-label="Spectral activity visualizer"
     >
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-2">
-        <div>
-          <p className="text-xs uppercase tracking-wide text-muted">Spectral heartbeat</p>
-          <p className="text-sm text-white">Live view of harmonics vs. raw sketch</p>
-        </div>
-        <div className="flex gap-2">
-          {vizOptions.map((option) => (
-            <Button
-              key={option.id}
-              size="sm"
-              variant={mode === option.id ? 'primary' : 'ghost'}
-              onClick={() => onModeChange(option.id)}
-            >
-              {option.label}
-            </Button>
-          ))}
-        </div>
-      </div>
-      <div className="relative flex-1 overflow-hidden">
-        <svg
-          className="h-full w-full"
-          viewBox={`0 ${-VIEW_OFFSET} ${WIDTH} ${HEIGHT + VIEW_OFFSET}`}
-          role="img"
-          aria-label="Animated visualization of Fourier activity"
-        >
-          <defs>
-            <pattern id="vizGrid" width="28" height="28" patternUnits="userSpaceOnUse">
-              <path d={`M0 0 H28`} stroke={vizColors.grid} strokeWidth="1" />
-              <path d={`M0 0 V28`} stroke={vizColors.grid} strokeWidth="1" />
-            </pattern>
-            <linearGradient id="vizGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="var(--accent-color)" stopOpacity="0.85" />
-              <stop offset="100%" stopColor="var(--accent-hover-color)" stopOpacity="0.95" />
-            </linearGradient>
-          </defs>
-          <rect width="100%" height="100%" rx="24" fill={vizColors.background} />
-
-          {mode === 'wave' && (
-            <>
-              <g opacity={0.45}>
-                <motion.path
-                  d={rawPath}
-                  fill="none"
-                  stroke={vizColors.raw}
-                  strokeWidth={1.4}
-                  strokeLinecap="round"
-                  initial={{ pathLength: 0 }}
-                  animate={{ pathLength: 1 }}
-                  transition={{ duration: 1.6, ease: 'easeInOut' }}
-                />
-              </g>
+      <svg
+        className="h-full w-full"
+        viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+        preserveAspectRatio="xMidYMid meet"
+        role="img"
+        aria-label="Animated visualization of Fourier activity"
+      >
+        <defs>
+          <linearGradient id="vizGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="var(--accent-color)" stopOpacity="0.85" />
+            <stop offset="100%" stopColor="var(--accent-hover-color)" stopOpacity="0.95" />
+          </linearGradient>
+        </defs>
+        {mode === 'wave' && (
+          <>
+            <g opacity={0.45}>
               <motion.path
+                d={rawPath}
+                fill="none"
+                stroke={vizColors.raw}
+                strokeWidth={4}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                initial={{ pathLength: 0, opacity: 0.3 }}
+                animate={
+                  isDrawing
+                    ? { pathLength: 1, opacity: 0.5 }
+                    : { pathLength: 1, opacity: [0.3, 0.7, 0.3] }
+                }
+                transition={
+                  isDrawing
+                    ? { duration: 0.4, ease: 'easeOut' }
+                    : {
+                        duration: 2,
+                        ease: 'easeInOut',
+                        repeat: Infinity,
+                        repeatType: 'reverse',
+                      }
+                }
+              />
+            </g>
+            <motion.path
+              d={reconPath}
+              fill="none"
+              stroke="url(#vizGradient)"
+              strokeWidth={6}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              initial={{ pathLength: 0, opacity: 0.5 }}
+              animate={
+                isDrawing
+                  ? { pathLength: 1, opacity: 0.9 }
+                  : { pathLength: 1, opacity: [0.6, 1, 0.6] }
+              }
+              transition={
+                isDrawing
+                  ? { duration: 0.5, ease: 'easeOut' }
+                  : {
+                      duration: 2.8,
+                      repeat: Infinity,
+                      repeatType: 'reverse',
+                      ease: 'easeInOut',
+                    }
+              }
+            />
+          </>
+        )}
+
+        {mode === 'ribbon' && (
+          <g>
+            {[-8, 0, 8].map((offset, bandIndex) => (
+              <motion.path
+                key={`ribbon-${bandIndex}`}
                 d={reconPath}
                 fill="none"
                 stroke="url(#vizGradient)"
-                strokeWidth={2}
+                strokeWidth={bandIndex === 1 ? 8 : 4}
+                strokeOpacity={bandIndex === 1 ? 0.5 : 0.25}
                 strokeLinecap="round"
-                initial={{ pathLength: 0 }}
-                animate={{ pathLength: 1, opacity: [0.4, 0.9, 0.4] }}
-                transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
+                strokeLinejoin="round"
+                transform={`translate(0 ${offset})`}
+                initial={{ pathLength: 0, opacity: 0 }}
+                animate={
+                  isDrawing
+                    ? { pathLength: 1, opacity: 0.7 }
+                    : { pathLength: 1, opacity: [0.2, 0.8, 0.2] }
+                }
+                transition={
+                  isDrawing
+                    ? { duration: 0.6, ease: 'easeOut' }
+                    : {
+                        duration: 3.2 + bandIndex * 0.4,
+                        repeat: Infinity,
+                        repeatType: 'reverse',
+                        ease: 'easeInOut',
+                      }
+                }
               />
-            </>
-          )}
+            ))}
+          </g>
+        )}
 
-          {mode === 'bars' && (
-            <g>
-              {barData.map((value, index) => {
-                const gap = 4;
-                const barWidth = WIDTH / barData.length - gap;
-                const normalized = (value + 1) / 2;
-                const barHeight = normalized * HEIGHT;
-                const x = index * (barWidth + gap);
-                const y = HEIGHT - barHeight;
-                return (
-                  <motion.rect
-                    key={`bar-${index}`}
-                    x={x}
-                    y={y}
-                    width={barWidth}
-                    height={barHeight}
-                    rx={6}
-                    fill="url(#vizGradient)"
-                    initial={{ height: 0, opacity: 0.4 }}
-                    animate={{ height: barHeight, opacity: 0.9 }}
-                    transition={{ duration: 0.8, delay: index * 0.03 }}
-                  />
-                );
-              })}
-            </g>
-          )}
-
-          {mode === 'flow' && (
-            <g>
-              {flowLines.map((path, index) => (
-                <motion.path
-                  key={`flow-${index}`}
-                  d={path}
-                  fill="none"
-                  stroke="url(#vizGradient)"
-                  strokeWidth={index === 0 ? 3 : 1.5}
-                  strokeOpacity={index === 0 ? 0.9 : 0.4}
-                  initial={{ pathLength: 0, opacity: 0.2 }}
-                  animate={{ pathLength: 1, opacity: [0.3, 0.8, 0.3] }}
-                  transition={{ duration: 3 + index, repeat: Infinity, ease: 'easeInOut' }}
-                />
-              ))}
-            </g>
-          )}
-        </svg>
-      </div>
+        {mode === 'echo' && (
+          <g>
+            {[0, -6, 6].map((offset, echoIndex) => (
+              <motion.path
+                key={`echo-${echoIndex}`}
+                d={reconPath}
+                fill="none"
+                stroke="url(#vizGradient)"
+                strokeWidth={echoIndex === 0 ? 7 : 4}
+                strokeOpacity={echoIndex === 0 ? 0.9 : 0.5}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeDasharray="12 8"
+                transform={`translate(0 ${offset})`}
+                initial={{ pathLength: 0, strokeDashoffset: 20 }}
+                animate={
+                  isDrawing
+                    ? { pathLength: 1, strokeDashoffset: 10 }
+                    : { pathLength: 1, strokeDashoffset: [0, 40] }
+                }
+                transition={
+                  isDrawing
+                    ? { duration: 0.6, ease: 'easeOut' }
+                    : {
+                        duration: 3.5 + echoIndex * 0.5,
+                        repeat: Infinity,
+                        ease: 'easeInOut',
+                      }
+                }
+              />
+            ))}
+          </g>
+        )}
+      </svg>
     </div>
   );
-}
-
-function buildBarData(values: number[]): number[] {
-  if (!values.length) return [];
-  const bucketSize = Math.max(1, Math.floor(values.length / 32));
-  const buckets: number[] = [];
-  for (let i = 0; i < values.length; i += bucketSize) {
-    const slice = values.slice(i, i + bucketSize);
-    const avg = slice.reduce((sum, value) => sum + value, 0) / slice.length;
-    buckets.push(avg);
-  }
-  return buckets;
-}
-
-function buildFlowLines(values: number[]): string[] {
-  if (!values.length) return [];
-  const lines: string[] = [];
-  const segments = 160;
-  const loops = 3;
-  for (let band = 0; band < 3; band += 1) {
-    const amplitude = 20 + band * 8;
-    const offsetY = band * 12;
-    const pts: string[] = [];
-    for (let i = 0; i <= segments; i += 1) {
-      const t = i / segments;
-      const angle = t * Math.PI * 2 * loops;
-      const index = Math.floor(t * values.length) % values.length;
-      const value = values[index];
-      const x = t * WIDTH + Math.sin(angle) * 12;
-      const y = HEIGHT / 2 + offsetY + Math.sin(angle) * amplitude + value * 18;
-      pts.push(`${x.toFixed(2)},${y.toFixed(2)}`);
-    }
-    lines.push(`M ${pts.join(' L ')}`);
-  }
-  return lines;
 }

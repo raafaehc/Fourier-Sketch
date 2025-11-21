@@ -21,6 +21,7 @@ export type CanvasPaneProps = {
   onResize?: (size: { width: number; height: number }) => void;
   classNameOverride?: string;
   theme?: 'dark' | 'light' | 'midnight' | 'sunset' | 'forest' | 'neon';
+  onDrawingStateChange?: (isDrawing: boolean) => void;
 };
 
 export function CanvasPane({
@@ -32,6 +33,7 @@ export function CanvasPane({
   onResize,
   classNameOverride,
   theme = 'dark',
+  onDrawingStateChange,
 }: CanvasPaneProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const drawing = useRef(false);
@@ -157,6 +159,7 @@ export function CanvasPane({
       if (!canvas) return;
       canvas.setPointerCapture(event.pointerId);
       drawing.current = true;
+      onDrawingStateChange?.(true);
       const rectBounds = canvas.getBoundingClientRect();
       const point = createPoint(event.nativeEvent, rectBounds);
       activePoints.current = [point];
@@ -183,6 +186,7 @@ export function CanvasPane({
 
   const handlePointerUp = useCallback(() => {
     drawing.current = false;
+    onDrawingStateChange?.(false);
   }, []);
 
   const overlay = useMemo(() => {

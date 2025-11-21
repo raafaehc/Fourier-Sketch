@@ -33,9 +33,18 @@ export default function App() {
   const [penOnly, setPenOnly] = useLocalStorage('fourier.pen-only', false);
   const [domainInput, setDomainInput] = useState<DomainRange>(DEFAULT_DOMAIN);
   const [canvasSize, setCanvasSize] = useState(DEFAULT_CANVAS);
+  const [isPreset, setIsPreset] = useState(false);
   const [explainLevel, setExplainLevel] = useState<'intro' | 'advanced'>('intro');
   const [seriesOpen, setSeriesOpen] = useState(false);
-  const [vizMode, setVizMode] = useState<'wave' | 'bars' | 'flow'>('wave');
+  const vizModes: Array<'wave' | 'ribbon' | 'echo'> = ['wave', 'ribbon', 'echo'];
+  const [vizMode, setVizMode] = useState<'wave' | 'ribbon' | 'echo'>(() => {
+    const index = Math.floor(Math.random() * vizModes.length);
+    return vizModes[index];
+  });
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [reconClipProgress, setReconClipProgress] = useState(0);
+  const [vizValues, setVizValues] = useState<number[]>([]);
+  const [vizSampleX, setVizSampleX] = useState<number[]>([]);
   type ThemeName = 'dark' | 'light' | 'midnight' | 'sunset' | 'forest' | 'neon';
   const themeOptions: { id: ThemeName; label: string }[] = [
     { id: 'dark', label: 'Dark' },
@@ -56,6 +65,40 @@ export default function App() {
 
 
   const domainSafe = useMemo(() => normalizeDomain(domainInput), [domainInput]);
+
+  useEffect(() => {
+    if (!isDrawing) return;
+    const current = vizMode;
+    let next = current;
+    if (vizModes.length > 1) {
+      while (next === current) {
+        next = vizModes[Math.floor(Math.random() * vizModes.length)];
+      }
+    }
+    setVizMode(next);
+  }, [isDrawing, vizMode]);
+
+  useEffect(() => {
+    if (isDrawing) {
+      setReconClipProgress(0);
+      return;
+    }
+    if (!canvasSize.width) return;
+    let frame: number;
+    const start = performance.now();
+    const duration = 1200;
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / duration);
+      setReconClipProgress(t);
+      if (t < 1) {
+        frame = requestAnimationFrame(tick);
+      }
+    };
+    frame = requestAnimationFrame(tick);
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [isDrawing, canvasSize.width]);
 
   const simplified = useMemo(
     () => simplifyPath(rawPoints, 1.2),
@@ -87,6 +130,13 @@ export default function App() {
     [coeffs, sampleU],
   );
 
+  useEffect(() => {
+    if (isDrawing) return;
+    if (!reconstructionValues.length || !sampleX.length) return;
+    setVizValues(reconstructionValues);
+    setVizSampleX(sampleX);
+  }, [isDrawing, reconstructionValues, sampleX]);
+
   const handleCopy = useCallback(async () => {
     const desmos = buildDesmosExport(coeffs, domainSafe);
     await copyToClipboard(desmos);
@@ -100,6 +150,7 @@ export default function App() {
       const generated = signal.generate(samples);
       const points = valuesToPoints(generated, canvasSize.width, canvasSize.height);
       setRawPoints(points);
+       setIsPreset(true);
       toast({ title: 'Preset applied', description: signal.label });
     },
     [canvasSize.height, canvasSize.width, toast],
@@ -107,10 +158,12 @@ export default function App() {
 
   const handleDrawingChange = useCallback((points: DrawingPoint[]) => {
     setRawPoints(points);
+    setIsPreset(false);
   }, []);
 
   const handleClear = useCallback(() => {
     setRawPoints([]);
+    setIsPreset(false);
   }, []);
 
   const handleDomainChange = useCallback((range: DomainRange) => {
@@ -120,11 +173,11 @@ export default function App() {
   const seriesText = useMemo(() => formatSeriesText(coeffs), [coeffs]);
   const desmosExport = useMemo(() => buildDesmosExport(coeffs, domainSafe), [coeffs, domainSafe]);
 
-  const displayPoints = smoothed.length ? smoothed : rawPoints;
+  const displayPoints = isPreset ? rawPoints : smoothed.length ? smoothed : rawPoints;
 
   const reconstructionPath = useMemo(() => {
     if (!reconstructionValues.length) return [];
-    return reconstructionValues.map((value, index) => {
+    const full = reconstructionValues.map((value, index) => {
       const xCoord =
         sampleX[index] ?? (sampleU[index] ?? 0) * Math.max(canvasSize.width - 1, 1);
       return {
@@ -132,7 +185,67 @@ export default function App() {
         y: valueToCanvasY(value, canvasSize.height),
       };
     });
-  }, [reconstructionValues, sampleX, sampleU, canvasSize.width, canvasSize.height]);
+    if (!displayPoints.length || !canvasSize.width) return full;
+
+    let minDrawX = Infinity;
+    let maxDrawX = -Infinity;
+    for (const point of displayPoints) {
+      if (point.x < minDrawX) minDrawX = point.x;
+      if (point.x > maxDrawX) maxDrawX = point.x;
+    }
+    if (!Number.isFinite(minDrawX) || !Number.isFinite(maxDrawX)) return full;
+
+    let clipLeft: number;
+    let clipRight: number;
+
+    if (isDrawing) {
+      clipLeft = minDrawX;
+      clipRight = maxDrawX;
+    } else {
+      const t = reconClipProgress;
+      clipLeft = minDrawX * (1 - t);
+      clipRight = maxDrawX + (canvasSize.width - maxDrawX) * t;
+    }
+
+    if (clipRight <= clipLeft) return full;
+    return full.filter((point) => point.x >= clipLeft && point.x <= clipRight);
+  }, [reconstructionValues, sampleX, sampleU, canvasSize.width, canvasSize.height, displayPoints, isDrawing, reconClipProgress]);
+
+  const vizVisibleRange = useMemo(() => {
+    if (!displayPoints.length || !canvasSize.width) {
+      return { start: 0, end: 1 };
+    }
+
+    let minDrawX = Infinity;
+    let maxDrawX = -Infinity;
+    for (const point of displayPoints) {
+      if (point.x < minDrawX) minDrawX = point.x;
+      if (point.x > maxDrawX) maxDrawX = point.x;
+    }
+    if (!Number.isFinite(minDrawX) || !Number.isFinite(maxDrawX)) {
+      return { start: 0, end: 1 };
+    }
+
+    let clipLeft: number;
+    let clipRight: number;
+
+    if (isDrawing) {
+      clipLeft = minDrawX;
+      clipRight = maxDrawX;
+    } else {
+      const t = reconClipProgress;
+      clipLeft = minDrawX * (1 - t);
+      clipRight = maxDrawX + (canvasSize.width - maxDrawX) * t;
+    }
+
+    if (clipRight <= clipLeft) {
+      return { start: 0, end: 1 };
+    }
+
+    const start = Math.max(0, Math.min(1, clipLeft / canvasSize.width));
+    const end = Math.max(start, Math.min(1, clipRight / canvasSize.width));
+    return { start, end };
+  }, [displayPoints, canvasSize.width, isDrawing, reconClipProgress]);
 
   return (
     <motion.main
@@ -201,6 +314,7 @@ export default function App() {
                 onResize={setCanvasSize}
                 classNameOverride="min-h-[600px]"
                 theme={theme}
+                onDrawingStateChange={setIsDrawing}
               />
             </div>
             <PresetBubbles onSelect={handleSelectSignal} className="-mt-2" />
@@ -218,13 +332,15 @@ export default function App() {
             onClear={handleClear}
           />
           <SpectralViz
-            values={values}
-            reconstruction={reconstructionValues}
-            sampleX={sampleX}
+            values={!isDrawing && vizValues.length > 0 && vizSampleX.length > 0 ? vizValues : []}
+            reconstruction={!isDrawing && vizValues.length > 0 && vizSampleX.length > 0 ? vizValues : []}
+            sampleX={!isDrawing && vizValues.length > 0 && vizSampleX.length > 0 ? vizSampleX : []}
             className="mt-auto min-h-[260px] overflow-hidden"
             mode={vizMode}
             theme={theme}
             onModeChange={setVizMode}
+            visibleRange={vizVisibleRange}
+            isDrawing={false}
           />
         </div>
       </motion.section>
