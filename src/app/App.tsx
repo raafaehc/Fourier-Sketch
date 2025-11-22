@@ -46,7 +46,7 @@ export default function App() {
   const [vizValues, setVizValues] = useState<number[]>([]);
   const [vizSampleX, setVizSampleX] = useState<number[]>([]);
   const seriesRef = useRef<HTMLDivElement | null>(null);
-  type ThemeName = 'dark' | 'light' | 'midnight' | 'sunset' | 'forest' | 'neon';
+  type ThemeName = 'dark' | 'light' | 'midnight' | 'sunset' | 'forest' | 'neon' | 'aurora' | 'pink';
   const themeOptions: { id: ThemeName; label: string }[] = [
     { id: 'dark', label: 'Dark' },
     { id: 'light', label: 'Light' },
@@ -54,6 +54,8 @@ export default function App() {
     { id: 'sunset', label: 'Sunset' },
     { id: 'forest', label: 'Forest' },
     { id: 'neon', label: 'Neon' },
+    { id: 'aurora', label: 'Aurora' },
+    { id: 'pink', label: 'Pink' },
   ];
   const [theme, setTheme] = useLocalStorage<ThemeName>('fourier.theme', 'dark');
   const { toast } = useToast();
@@ -290,21 +292,16 @@ export default function App() {
                 ))}
               </select>
             </label>
-            <motion.a
+            <a
               href="https://www.buymeacoffee.com/raafaehc"
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/30 px-3.5 py-1.5 text-[11px] text-muted backdrop-blur-sm transition hover:border-accent hover:text-white"
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              whileHover={{ scale: 1.08 }}
-              whileTap={{ scale: 0.97 }}
-              transition={{ duration: 0.4, ease: 'easeOut', delay: 0.3 }}
+              className="inline-flex transform items-center gap-2 rounded-full border border-white/15 bg-black/30 px-3.5 py-1.5 text-[11px] text-muted backdrop-blur-sm transition hover:border-accent hover:text-white hover:scale-[1.08]"
             >
               <Coffee className="h-3.5 w-3.5 text-accent" />
               <span className="hidden sm:inline">Want to support the project?</span>
               <span className="font-semibold text-white">Buy me a coffee</span>
-            </motion.a>
+            </a>
           </div>
         </div>
         <p className="text-sm text-muted">
