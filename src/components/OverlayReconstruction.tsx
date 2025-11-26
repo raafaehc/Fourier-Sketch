@@ -12,6 +12,7 @@ export type OverlayReconstructionProps = {
 export function OverlayReconstruction({ path, width, height }: OverlayReconstructionProps) {
   const d = useMemo(() => pointsToPath(path), [path]);
   if (!path.length) return null;
+
   return (
     <svg
       className="pointer-events-none absolute inset-0"

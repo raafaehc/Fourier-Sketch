@@ -34,6 +34,8 @@ export default function App() {
   const [domainInput, setDomainInput] = useState<DomainRange>(DEFAULT_DOMAIN);
   const [canvasSize, setCanvasSize] = useState(DEFAULT_CANVAS);
   const [isPreset, setIsPreset] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState(0);
+  const [onboardingDismissed, setOnboardingDismissed] = useState(false);
   const [explainLevel, setExplainLevel] = useState<'intro' | 'advanced'>('intro');
   const [seriesOpen, setSeriesOpen] = useState(true);
   const vizModes: Array<'wave' | 'ribbon' | 'echo'> = ['wave', 'ribbon', 'echo'];
@@ -143,7 +145,10 @@ export default function App() {
   const handleCopy = useCallback(async () => {
     const desmos = buildDesmosExport(coeffs, domainSafe);
     await copyToClipboard(desmos);
-    toast({ title: 'Series copied', description: 'Paste into Desmos to visualize the reconstruction.' });
+    toast({
+      title: 'Series copied',
+      description: 'Paste into Desmos to visualize the reconstruction.',
+    });
   }, [coeffs, domainSafe, toast]);
 
   const handleScrollToSeries = useCallback(() => {
@@ -182,7 +187,10 @@ export default function App() {
   const seriesText = useMemo(() => formatSeriesText(coeffs), [coeffs]);
   const desmosExport = useMemo(() => buildDesmosExport(coeffs, domainSafe), [coeffs, domainSafe]);
 
-  const displayPoints = isPreset ? rawPoints : smoothed.length ? smoothed : rawPoints;
+  const displayPoints = useMemo(
+    () => (isPreset ? rawPoints : smoothed.length ? smoothed : rawPoints),
+    [isPreset, rawPoints, smoothed],
+  );
 
   const reconstructionPath = useMemo(() => {
     if (!reconstructionValues.length) return [];
@@ -263,6 +271,61 @@ export default function App() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, ease: 'easeOut' }}
     >
+      {!onboardingDismissed ? (
+        <motion.div
+          className="pointer-events-none fixed bottom-4 right-4 z-30 max-w-sm"
+          initial={{ opacity: 0, y: 10, x: 6 }}
+          animate={{ opacity: 1, y: 0, x: 0 }}
+          transition={{ duration: 0.4, ease: 'easeOut' }}
+        >
+          <div className="pointer-events-auto rounded-2xl border border-white/10 bg-black/75 px-4 py-3 shadow-xl backdrop-blur-md">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-muted">Quick tips</p>
+                <h3 className="text-sm font-semibold text-white">First time?</h3>
+              </div>
+              <Button size="sm" variant="ghost" className="rounded-full px-2" onClick={() => setOnboardingDismissed(true)}>
+                Skip
+              </Button>
+            </div>
+            <div className="mt-2 space-y-2 text-xs text-muted">
+              {onboardingStep === 0 && (
+                <p>Draw left → right on the canvas. We smooth and resample your stroke automatically.</p>
+              )}
+              {onboardingStep === 1 && (
+                <p>Use Harmonics and Smoothing to tune the approximation on the right.</p>
+              )}
+              {onboardingStep === 2 && (
+                <p>Copy Desmos to paste the series into Desmos. Adjust the domain if needed.</p>
+              )}
+            </div>
+            <div className="mt-3 flex items-center justify-between gap-2 text-[11px]">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="rounded-full px-3"
+                disabled={onboardingStep === 0}
+                onClick={() => setOnboardingStep((prev) => Math.max(0, prev - 1))}
+              >
+                Back
+              </Button>
+              <Button
+                size="sm"
+                className="rounded-full px-3"
+                onClick={() => {
+                  if (onboardingStep >= 2) {
+                    setOnboardingDismissed(true);
+                  } else {
+                    setOnboardingStep((prev) => Math.min(2, prev + 1));
+                  }
+                }}
+              >
+                {onboardingStep >= 2 ? 'Done' : 'Next'}
+              </Button>
+            </div>
+          </div>
+        </motion.div>
+      ) : null}
       <motion.header
         className="space-y-3"
         initial={{ opacity: 0, y: -16, x: -14 }}
@@ -277,21 +340,32 @@ export default function App() {
             </h1>
           </div>
           <div className="flex flex-col items-end gap-3">
-            <label className="flex items-center gap-2 text-xs text-muted">
-              Theme
-              <select
-                value={theme}
-                onChange={(event) => setTheme(event.target.value as ThemeName)}
-                className="rounded-full border border-white/10 bg-black/30 px-3 py-1 text-xs text-white outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)]"
-                aria-label="Select theme"
-              >
-                {themeOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/30 px-2 py-1 shadow-[0_10px_24px_rgba(15,23,42,0.45)]">
+                <span className="text-[11px] uppercase tracking-[0.15em] text-muted">Theme</span>
+                <div className="flex overflow-hidden rounded-full border border-white/10 bg-black/40">
+                  {themeOptions.map((option) => {
+                    const active = theme === option.id;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => setTheme(option.id as ThemeName)}
+                        className={cn(
+                          'px-3 py-1 text-[11px] transition',
+                          active
+                            ? 'bg-[var(--accent-color)] text-black'
+                            : 'text-muted hover:text-white hover:bg-white/10',
+                        )}
+                        aria-pressed={active}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
             <a
               href="https://www.buymeacoffee.com/raafaehc"
               target="_blank"
@@ -317,17 +391,17 @@ export default function App() {
       >
           <div className="flex h-full flex-col gap-2">
             <div className="relative flex-1">
-              <CanvasPane
-                points={displayPoints}
-                onDrawingChange={handleDrawingChange}
-                penOnly={penOnly}
-                domain={domainSafe}
-                reconstructionPath={reconstructionPath}
-                onResize={setCanvasSize}
-                classNameOverride="min-h-[600px]"
-                theme={theme}
-                onDrawingStateChange={setIsDrawing}
-              />
+          <CanvasPane
+            points={displayPoints}
+            onDrawingChange={handleDrawingChange}
+            penOnly={penOnly}
+            domain={domainSafe}
+            reconstructionPath={reconstructionPath}
+            onResize={setCanvasSize}
+            classNameOverride="min-h-[600px]"
+            theme={theme}
+            onDrawingStateChange={setIsDrawing}
+          />
               <div className="pointer-events-none absolute inset-x-4 top-4 flex justify-between">
                 <button
                   type="button"
@@ -362,7 +436,7 @@ export default function App() {
             onPenToggle={setPenOnly}
             onClear={handleClear}
           />
-          <SpectralViz
+         <SpectralViz
             values={!isDrawing && vizValues.length > 0 && vizSampleX.length > 0 ? vizValues : []}
             reconstruction={!isDrawing && vizValues.length > 0 && vizSampleX.length > 0 ? vizValues : []}
             sampleX={!isDrawing && vizValues.length > 0 && vizSampleX.length > 0 ? vizSampleX : []}
