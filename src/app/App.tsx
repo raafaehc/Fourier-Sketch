@@ -11,7 +11,7 @@ import { useLocalStorage } from '../hooks/useLocalStorage';
 import { simplifyPath } from '../lib/simplify';
 import { smoothPath } from '../lib/smoothing';
 import { resampleArcLength } from '../lib/resampleArcLength';
-import { computeFourierCoefficients, evaluateFourierSeries } from '../lib/fourier';
+import { applyLanczosSigma, computeFourierCoefficients, evaluateFourierSeries } from '../lib/fourier';
 import { formatSeriesText, buildDesmosExport } from '../lib/formatting';
 import { DEFAULT_DOMAIN, normalizeDomain, type DomainRange } from '../lib/domain';
 import {
@@ -125,9 +125,14 @@ export default function App() {
     [smoothed, canvasSize.height, canvasSize.width],
   );
 
-  const coeffs = useMemo(
+  const baseCoeffs = useMemo(
     () => computeFourierCoefficients(values, harmonics),
     [values, harmonics],
+  );
+
+  const coeffs = useMemo(
+    () => applyLanczosSigma(baseCoeffs),
+    [baseCoeffs],
   );
 
   const reconstructionValues = useMemo(

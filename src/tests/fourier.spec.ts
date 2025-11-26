@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeFourierCoefficients, evaluateFourierSeries } from '../lib/fourier';
+import { applyLanczosSigma, computeFourierCoefficients, evaluateFourierSeries } from '../lib/fourier';
 
 function generateSine(samples: number) {
   return Array.from({ length: samples }, (_, i) => {
@@ -19,7 +19,19 @@ describe('fourier', () => {
   it('reconstruction matches original samples', () => {
     const values = generateSine(256);
     const coeffs = computeFourierCoefficients(values, 5);
-    const reconstruction = evaluateFourierSeries(coeffs, 256);
+    const tapered = applyLanczosSigma(coeffs);
+    const reconstruction = evaluateFourierSeries(tapered, 256);
     expect(reconstruction[50]).toBeCloseTo(values[50], 1);
+  });
+
+  it('tapers high-order harmonics to curb ringing', () => {
+    const samples = 256;
+    const square = Array.from({ length: samples }, (_, i) => (i < samples / 2 ? 1 : -1));
+    const coeffs = computeFourierCoefficients(square, 9);
+    const tapered = applyLanczosSigma(coeffs);
+    const lastIndex = coeffs.bn.length - 1;
+
+    expect(Math.abs(tapered.bn[lastIndex])).toBeLessThan(Math.abs(coeffs.bn[lastIndex]));
+    expect(Math.abs(tapered.bn[0])).toBeGreaterThan(0.7 * Math.abs(coeffs.bn[0]));
   });
 });

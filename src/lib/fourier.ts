@@ -39,6 +39,29 @@ export function computeFourierCoefficients(
   return { a0, an, bn };
 }
 
+export function applyLanczosSigma(coeffs: FourierCoefficients): FourierCoefficients {
+  const order = Math.max(coeffs.an.length, coeffs.bn.length);
+  if (order === 0) {
+    return { a0: coeffs.a0, an: [], bn: [] };
+  }
+
+  const sigma = (k: number) => {
+    const x = (Math.PI * k) / (order + 1);
+    if (x === 0) return 1;
+    const value = Math.sin(x) / x;
+    return Number.isFinite(value) ? value : 1;
+  };
+
+  const an = coeffs.an.map((value, index) => value * sigma(index + 1));
+  const bn = coeffs.bn.map((value, index) => value * sigma(index + 1));
+
+  return {
+    a0: coeffs.a0,
+    an,
+    bn,
+  };
+}
+
 export function evaluateFourierSeries(
   coeffs: FourierCoefficients,
   resolutionOrSamples?: number | number[],
